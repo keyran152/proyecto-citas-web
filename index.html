@@ -1,0 +1,2507 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reservas de Citas en Tiempo Real | ApexReserve</title>
+
+  <!-- Tipografía Google: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Tailwind CSS por CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            corporate: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Supabase JS Client por CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse at 85% 4%, rgba(219, 234, 254, 0.62), transparent 32rem),
+        #f8fafc;
+    }
+
+    button,
+    input,
+    select {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(59, 130, 246, 0.45);
+      outline-offset: 2px;
+    }
+
+    .step-panel[hidden] {
+      display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.4);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(0.95);
+        opacity: 0;
+      }
+    }
+
+    .pulse-effect {
+      position: relative;
+    }
+
+    .pulse-effect::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 9999px;
+      background-color: currentColor;
+      animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    .new-row-highlight {
+      animation: highlightFade 3.5s ease-out forwards;
+    }
+
+    @keyframes highlightFade {
+      0% {
+        background-color: rgba(59, 130, 246, 0.22);
+      }
+
+      100% {
+        background-color: transparent;
+      }
+    }
+
+    .update-row-highlight {
+      animation: updateFade 2.5s ease-out forwards;
+    }
+
+    @keyframes updateFade {
+      0% {
+        background-color: rgba(245, 158, 11, 0.22);
+      }
+
+      100% {
+        background-color: transparent;
+      }
+    }
+
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-100/90 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- Encabezado Corporativo -->
+  <header class="bg-corporate-900 border-b border-slate-800 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+      <!-- Marca / Logo -->
+      <div class="flex items-center space-x-3">
+        <div
+          class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <i data-lucide="calendar-check-2" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Apex<span class="text-blue-400 font-semibold">Reserve</span>
+            <span
+              class="hidden sm:inline-flex text-xs bg-slate-800 text-slate-300 font-medium px-2 py-0.5 rounded-full border border-slate-700">En
+              Vivo</span>
+          </h1>
+          <p class="hidden sm:block text-xs text-slate-400">Sistema de Gestión de Citas en Tiempo Real</p>
+        </div>
+      </div>
+
+      <!-- Sección Derecha: Indicador de Conexión + Botón de Consulta Anónima -->
+      <div class="flex items-center gap-3">
+        <!-- Indicador de Estado de Conexión -->
+        <div
+          class="hidden sm:flex items-center gap-2.5 bg-slate-800/90 border border-slate-700/80 px-3.5 py-1.5 rounded-full text-xs shadow-inner">
+          <span id="statusIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-effect"></span>
+          <span id="statusIndicatorText" class="font-medium text-slate-300">Conectando...</span>
+        </div>
+
+        <!-- Botón Público: Consultar mi Cita -->
+        <button id="btnHeaderTrack" type="button" title="Consultar estado de cita por código de seguimiento"
+          class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-blue-300 hover:text-blue-200 border border-slate-700 transition-all cursor-pointer shadow-sm hover:border-slate-600">
+          <i data-lucide="ticket" class="w-3.5 h-3.5 text-blue-400"></i>
+          <span class="hidden md:inline">Consultar mi Cita</span>
+        </button>
+
+        <button id="btnAdminAccess" type="button" title="Acceso al panel de administración"
+          class="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 sm:py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm hover:border-slate-600">
+          <i data-lucide="lock-keyhole" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Panel Admin</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Contenedor Principal Dividido en Dos Columnas (Split-Screen) -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+    <section class="mb-6 sm:mb-8 max-w-3xl" aria-labelledby="pageTitle">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">ApexReserve · Atención corporativa</p>
+      <h2 id="pageTitle" class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-slate-950">
+        Tu próxima cita, <span class="text-blue-700">sin complicaciones.</span>
+      </h2>
+      <p class="mt-3 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-600">
+        Elige un servicio y un horario disponible. Completar tu solicitud toma solo unos minutos.
+      </p>
+    </section>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+
+      <!-- ======================================================== -->
+      <!-- COLUMNA IZQUIERDA: Formulario de Agendamiento de Citas   -->
+      <!-- ======================================================== -->
+      <section id="appointmentFormPanel"
+        class="lg:col-span-12 bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-200/90 overflow-hidden">
+
+        <!-- Cabecera del Formulario -->
+        <div
+          class="px-6 py-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="calendar-plus" class="w-4 h-4 text-blue-600"></i>
+              Reserva tu cita
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Un proceso simple, en tres pasos</p>
+          </div>
+          <span id="bookingStepBadge" aria-label="Paso 1 de 3"
+            class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-100 shadow-sm">
+            1
+          </span>
+        </div>
+
+        <!-- Formulario -->
+        <form id="appointmentForm" class="p-5 sm:p-8 space-y-6" novalidate>
+          <!-- Alerta de estado interna -->
+          <div id="formAlert" role="alert" aria-live="polite" class="hidden p-3.5 rounded-xl text-xs flex items-center gap-2.5"></div>
+
+          <ol class="grid grid-cols-3 gap-2 sm:gap-4" aria-label="Progreso de reserva">
+            <li data-step-indicator="1" class="step-indicator flex items-center gap-2 border-b-2 border-blue-600 pb-3 text-blue-700">
+              <span class="step-number flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
+              <span class="min-w-0"><span class="block text-[10px] uppercase tracking-wider font-bold">Paso 1</span><span class="block truncate text-xs sm:text-sm font-semibold">Servicio</span></span>
+            </li>
+            <li data-step-indicator="2" class="step-indicator flex items-center gap-2 border-b-2 border-slate-200 pb-3 text-slate-400">
+              <span class="step-number flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">2</span>
+              <span class="min-w-0"><span class="block text-[10px] uppercase tracking-wider font-bold">Paso 2</span><span class="block truncate text-xs sm:text-sm font-semibold">Fecha y hora</span></span>
+            </li>
+            <li data-step-indicator="3" class="step-indicator flex items-center gap-2 border-b-2 border-slate-200 pb-3 text-slate-400">
+              <span class="step-number flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">3</span>
+              <span class="min-w-0"><span class="block text-[10px] uppercase tracking-wider font-bold">Paso 3</span><span class="block truncate text-xs sm:text-sm font-semibold">Tus datos</span></span>
+            </li>
+          </ol>
+
+          <!-- Campo: Nombre -->
+          <div class="step-panel space-y-5" data-step-panel="3" hidden>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">¿A nombre de quién reservamos?</h3>
+              <p class="mt-1 text-sm text-slate-500">Usaremos tu nombre para identificar y gestionar la solicitud.</p>
+            </div>
+            <label for="nombre" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Nombre Completo del Cliente <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative rounded-xl shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="user" class="w-4 h-4"></i>
+              </div>
+              <input type="text" id="nombre" name="nombre" required placeholder="Ej. Dra. Valeria Gómez Peña"
+                class="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+            </div>
+            <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+              <p class="text-xs font-semibold text-slate-700">Resumen de tu solicitud</p>
+              <dl class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div><dt class="text-slate-500">Servicio</dt><dd id="bookingSummaryService" class="mt-0.5 font-semibold text-slate-900">Pendiente</dd></div>
+                <div><dt class="text-slate-500">Fecha</dt><dd id="bookingSummaryDate" class="mt-0.5 font-semibold text-slate-900">Pendiente</dd></div>
+                <div><dt class="text-slate-500">Horario</dt><dd id="bookingSummaryTime" class="mt-0.5 font-semibold text-slate-900">Pendiente</dd></div>
+              </dl>
+            </div>
+          </div>
+
+          <!-- Campo: Servicio -->
+          <div class="step-panel space-y-5" data-step-panel="1">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">¿En qué podemos ayudarte?</h3>
+              <p class="mt-1 text-sm text-slate-500">Selecciona el servicio que mejor se ajuste a tus necesidades.</p>
+            </div>
+            <div>
+            <label for="servicio" class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Servicio Deseado <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative rounded-xl shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="briefcase" class="w-4 h-4"></i>
+              </div>
+              <select id="servicio" name="servicio" required
+                class="block w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer">
+                <option value="" disabled selected>Selecciona un servicio corporativo...</option>
+                <option value="Consultoría Estratégica y Negocios">Consultoría Estratégica y Negocios</option>
+                <option value="Asesoría Legal y Corporativa">Asesoría Legal y Corporativa</option>
+                <option value="Auditoría Financiera y Contable">Auditoría Financiera y Contable</option>
+                <option value="Desarrollo de Software y Cloud">Desarrollo de Software y Cloud</option>
+                <option value="Consultoría de Recursos Humanos">Consultoría de Recursos Humanos</option>
+                <option value="Gestión de Riesgos y Cumplimiento">Gestión de Riesgos y Cumplimiento</option>
+                <option value="Soporte y Atención Ejecutiva">Soporte y Atención Ejecutiva</option>
+              </select>
+              <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <!-- Campo: Fecha -->
+          <div class="step-panel space-y-5" data-step-panel="2" hidden>
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Encuentra el mejor momento</h3>
+              <p class="mt-1 text-sm text-slate-500">Los horarios ocupados se actualizan automáticamente.</p>
+            </div>
+            <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="fecha" class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Fecha de la Cita <span class="text-rose-500">*</span>
+              </label>
+              <span id="dateAvailabilityNote" class="text-[11px] text-blue-600 font-medium"></span>
+            </div>
+            <div class="relative rounded-xl shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="calendar" class="w-4 h-4"></i>
+              </div>
+              <input type="date" id="fecha" name="fecha" required
+                class="block w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer" />
+            </div>
+          </div>
+
+          <!-- Campo: Hora con Menú Estándar y Detección de Horarios Ocupados -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="hora" class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Horario de Atención (8:00 AM - 5:00 PM) <span class="text-rose-500">*</span>
+              </label>
+              <span id="timeConflictBadge"
+                class="hidden text-[11px] font-semibold text-rose-600 flex items-center gap-1">
+                <i data-lucide="alert-circle" class="w-3 h-3"></i> Horario Ocupado
+              </span>
+            </div>
+
+            <div class="relative rounded-xl shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+              </div>
+              <select id="hora" name="hora" required
+                class="block w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer">
+                <!-- Opciones cargadas por defecto para disponibilidad inmediata -->
+                <option value="" disabled selected>Selecciona un horario disponible...</option>
+                <option value="08:00">08:00 AM (Disponible)</option>
+                <option value="08:30">08:30 AM (Disponible)</option>
+                <option value="09:00">09:00 AM (Disponible)</option>
+                <option value="09:30">09:30 AM (Disponible)</option>
+                <option value="10:00">10:00 AM (Disponible)</option>
+                <option value="10:30">10:30 AM (Disponible)</option>
+                <option value="11:00">11:00 AM (Disponible)</option>
+                <option value="11:30">11:30 AM (Disponible)</option>
+                <option value="12:00">12:00 PM (Disponible)</option>
+                <option value="12:30">12:30 PM (Disponible)</option>
+                <option value="13:00">01:00 PM (Disponible)</option>
+                <option value="13:30">01:30 PM (Disponible)</option>
+                <option value="14:00">02:00 PM (Disponible)</option>
+                <option value="14:30">02:30 PM (Disponible)</option>
+                <option value="15:00">03:00 PM (Disponible)</option>
+                <option value="15:30">03:30 PM (Disponible)</option>
+                <option value="16:00">04:00 PM (Disponible)</option>
+                <option value="16:30">04:30 PM (Disponible)</option>
+                <option value="17:00">05:00 PM (Disponible)</option>
+              </select>
+              <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+              </div>
+            </div>
+
+            <!-- Resumen visual de disponibilidad para la fecha seleccionada -->
+            <div id="occupiedHoursBox"
+              class="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500">
+              <div class="font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
+                <i data-lucide="info" class="w-3.5 h-3.5 text-blue-500"></i>
+                <span>Disponibilidad para esta fecha:</span>
+              </div>
+              <div id="occupiedBadgesList" class="flex flex-wrap gap-1.5 mt-1">
+                <span class="text-slate-400 italic">Consultando horarios libres...</span>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
+            <button type="button" id="previousStepBtn"
+              class="hidden inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+              <i data-lucide="arrow-left" class="h-4 w-4"></i><span>Anterior</span>
+            </button>
+            <span id="stepHint" class="mr-auto text-xs text-slate-500">Primero, elige el servicio que necesitas.</span>
+            <button type="button" id="nextStepBtn"
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-700/20 transition hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+              <span>Continuar</span><i data-lucide="arrow-right" class="h-4 w-4"></i>
+            </button>
+          </div>
+
+          <!-- Botón de Envío -->
+          <div id="bookingActions" class="hidden pt-1">
+            <button type="submit" id="submitBtn"
+              class="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-semibold text-sm shadow-lg shadow-blue-700/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+              <span id="btnIconWrapper">
+                <i data-lucide="calendar-check" class="w-4 h-4"></i>
+              </span>
+              <span id="btnText">Confirmar y Agendar Cita</span>
+            </button>
+          </div>
+
+          <p id="bookingPrivacyNotice" class="hidden text-[11px] text-center text-slate-500 leading-relaxed">
+            Al agendar, aceptas que tus datos se utilicen para gestionar tu cita.
+            Consulta nuestra
+            <button type="button" data-legal-document="privacy"
+              class="text-blue-600 hover:text-blue-800 underline underline-offset-2 cursor-pointer">Política de Privacidad</button>
+            y los
+            <button type="button" data-legal-document="terms"
+              class="text-blue-600 hover:text-blue-800 underline underline-offset-2 cursor-pointer">Términos y Condiciones</button>.
+          </p>
+        </form>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- COLUMNA DERECHA: Visualización de Todos los Registros    -->
+      <!-- (Cargados automáticamente al iniciar mediante SELECT)    -->
+      <!-- ======================================================== -->
+      <section id="adminRecordsPanel"
+        class="hidden lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col">
+
+        <!-- Cabecera del Panel con Métricas y Controles -->
+        <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <i data-lucide="layout-dashboard" class="w-4 h-4 text-blue-600"></i>
+                  Registros Guardados en Supabase
+                </h2>
+                <span id="totalBadge"
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  0 citas
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Consulta <strong class="text-blue-600 font-mono">SELECT * FROM citas</strong> ejecutada al cargar la
+                página
+              </p>
+            </div>
+
+            <!-- Botones de Acción Rápida: Audio y Recarga Manual -->
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <!-- Botón de Audio -->
+              <button id="toggleSoundBtn" type="button" title="Activar o silenciar notificaciones sonoras"
+                class="px-2.5 py-1.5 text-xs text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5 text-blue-600" id="soundIcon"></i>
+                <span class="hidden sm:inline text-[11px]" id="soundText">Audio</span>
+              </button>
+
+              <!-- Botón de Refresco (Vuelve a ejecutar SELECT) -->
+              <button id="refreshBtn" type="button" title="Volver a consultar registros (SELECT)"
+                class="p-1.5 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 rounded-lg border border-slate-200 transition-all cursor-pointer shadow-sm">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Métricas Resumidas / Contadores de Estado -->
+          <div class="grid grid-cols-4 gap-2 sm:gap-3 mt-4 pt-3 border-t border-slate-100">
+            <!-- Total -->
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs flex flex-col">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total</span>
+              <span id="statTotal" class="text-base sm:text-lg font-bold text-slate-800">0</span>
+            </div>
+            <!-- Pendientes -->
+            <div class="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80 shadow-xs flex flex-col">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-amber-700 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pendientes
+              </span>
+              <span id="statPendientes" class="text-base sm:text-lg font-bold text-amber-800">0</span>
+            </div>
+            <!-- Confirmadas -->
+            <div class="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80 shadow-xs flex flex-col">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-700 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aprobadas
+              </span>
+              <span id="statConfirmadas" class="text-base sm:text-lg font-bold text-emerald-800">0</span>
+            </div>
+            <!-- Canceladas -->
+            <div class="bg-rose-50/70 p-2.5 rounded-xl border border-rose-200/80 shadow-xs flex flex-col">
+              <span class="text-[10px] uppercase font-bold tracking-wider text-rose-700 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Canceladas
+              </span>
+              <span id="statCanceladas" class="text-base sm:text-lg font-bold text-rose-800">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Barra de Búsqueda y Pestañas de Filtros en Vivo -->
+        <div class="px-5 py-3.5 bg-slate-50/90 border-b border-slate-200/80 flex flex-col gap-3">
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            <!-- Buscador por texto -->
+            <div class="relative flex-1">
+              <input type="text" id="searchInput" placeholder="Buscar por cliente, servicio, código (ej. CR-4821)..."
+                class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 placeholder-slate-400 transition-all shadow-xs" />
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2"></i>
+            </div>
+
+            <!-- Filtro por Fecha (Todas vs Hoy) -->
+            <div
+              class="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-xs text-xs self-start sm:self-auto">
+              <button id="dateFilterAll"
+                class="date-filter-btn px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-900 text-white transition-all cursor-pointer"
+                data-date-filter="all">
+                Todas las fechas
+              </button>
+              <button id="dateFilterToday"
+                class="date-filter-btn px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
+                data-date-filter="today">
+                Solo Hoy
+              </button>
+            </div>
+          </div>
+
+          <!-- Pestañas de Filtro por Estado -->
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+            <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">Filtrar:</span>
+
+            <button
+              class="status-tab-btn px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              data-status="all">
+              <span>Todas</span>
+              <span id="tabCountAll" class="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">0</span>
+            </button>
+
+            <button
+              class="status-tab-btn px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all cursor-pointer flex items-center gap-1.5"
+              data-status="Pendiente">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              <span>Pendientes</span>
+              <span id="tabCountPendiente"
+                class="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px]">0</span>
+            </button>
+
+            <button
+              class="status-tab-btn px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all cursor-pointer flex items-center gap-1.5"
+              data-status="Confirmada">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Confirmadas</span>
+              <span id="tabCountConfirmada"
+                class="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px]">0</span>
+            </button>
+
+            <button
+              class="status-tab-btn px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all cursor-pointer flex items-center gap-1.5"
+              data-status="Cancelada">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              <span>Canceladas</span>
+              <span id="tabCountCancelada"
+                class="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px]">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla Visual de Citas (Cargada desde Supabase) -->
+        <div class="overflow-x-auto min-h-[380px] max-h-[580px] overflow-y-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead
+              class="bg-slate-50/90 sticky top-0 z-10 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+              <tr>
+                <th class="py-3 px-3 sm:px-4"># ID / Código</th>
+                <th class="py-3 px-3 sm:px-4">Cliente</th>
+                <th class="py-3 px-3 sm:px-4">Servicio</th>
+                <th class="py-3 px-3 sm:px-4">Fecha y Hora</th>
+                <th class="py-3 px-3 sm:px-4 text-center">Estado</th>
+                <th class="py-3 px-3 sm:px-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="citasTableBody" class="divide-y divide-slate-100 text-slate-600">
+              <!-- Fila de Carga Inicial -->
+              <tr id="loadingRow">
+                <td colspan="6" class="py-16 text-center text-slate-400">
+                  <div class="inline-flex items-center gap-2.5 text-sm font-medium">
+                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-blue-600"></i>
+                    <span>Ejecutando SELECT y cargando registros desde Supabase...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pie del Panel -->
+        <div
+          class="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+          <div class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Canal activo: <strong class="font-mono text-slate-700">citas-realtime-channel</strong></span>
+          </div>
+          <span class="text-slate-400">Actualización automática al ingresar nuevas citas</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="mt-auto border-t border-slate-200 bg-white/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>&copy; ApexReserve</span>
+      <nav aria-label="Información legal" class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+        <button type="button" data-legal-document="privacy"
+          class="hover:text-blue-700 transition-colors cursor-pointer">Política de Privacidad</button>
+        <button type="button" data-legal-document="terms"
+          class="hover:text-blue-700 transition-colors cursor-pointer">Términos y Condiciones</button>
+        <button type="button" data-legal-document="cookies"
+          class="hover:text-blue-700 transition-colors cursor-pointer">Cookies</button>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: CONSULTA DE CITA PÚBLICA (SEGUIMIENTO ANÓNIMO)   -->
+  <!-- ======================================================== -->
+  <div id="trackingModal"
+    class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-200">
+
+      <!-- Cabecera -->
+      <div class="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center">
+            <i data-lucide="ticket" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white">Consultar Estado de Cita</h3>
+            <p class="text-[11px] text-slate-400">Seguimiento anónimo y privado en tiempo real</p>
+          </div>
+        </div>
+        <button id="closeTrackingModalBtn" type="button"
+          class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="p-6 space-y-4">
+        <form id="trackingSearchForm" class="space-y-3">
+          <div>
+            <label for="trackingCodeInput"
+              class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+              Ingresa tu Código de Seguimiento <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative rounded-xl shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <i data-lucide="ticket" class="w-4 h-4"></i>
+              </div>
+              <input type="text" id="trackingCodeInput" required placeholder="Ej. CR-4821" maxlength="15"
+                class="block w-full pl-10 pr-24 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono uppercase tracking-wider placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+              <button type="submit" id="btnSubmitTrackingSearch"
+                class="absolute inset-y-1 right-1 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-sm">
+                <span>Buscar</span>
+                <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            <!-- Acceso rápido a la última cita generada -->
+            <div id="trackingQuickChips" class="hidden flex items-center gap-2 mt-2">
+              <span class="text-[11px] text-slate-400">Tu última cita:</span>
+              <button type="button" id="btnQuickChipCode"
+                class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"></button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Mensaje de Estado / Alerta de Búsqueda -->
+        <div id="trackingStatusMessage" class="hidden p-3.5 rounded-xl text-xs flex items-center gap-2.5"></div>
+
+        <!-- Tarjeta de Resultado de Seguimiento -->
+        <div id="trackingResultCard"
+          class="hidden rounded-2xl border border-slate-200 overflow-hidden bg-slate-50/50 transition-all">
+          <!-- Cabecera del Resultado -->
+          <div class="p-4 bg-white border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span
+                class="font-mono text-sm font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200"
+                id="trackCardCode">
+                CR-4821
+              </span>
+              <span class="text-xs text-slate-500 font-medium" id="trackCardClient">
+                Cliente: C. M.
+              </span>
+            </div>
+            <div id="trackCardBadge">
+              <!-- Badge dinámico -->
+            </div>
+          </div>
+
+          <!-- Detalles de la Cita Anónima -->
+          <div class="p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+                <span class="text-[10px] uppercase font-semibold text-slate-400 block mb-0.5">Servicio</span>
+                <span id="trackCardService" class="font-semibold text-slate-800 block truncate">--</span>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200/80">
+                <span class="text-[10px] uppercase font-semibold text-slate-400 block mb-0.5">Fecha & Horario</span>
+                <span id="trackCardDateTime" class="font-semibold text-slate-800 block truncate">--</span>
+              </div>
+            </div>
+
+            <!-- Explicación de Estado -->
+            <div id="trackCardExplanation"
+              class="p-3 rounded-xl text-xs bg-white border border-slate-200 flex items-start gap-2.5">
+              <!-- Mensaje contextual -->
+            </div>
+
+            <!-- Indicador en Vivo -->
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 px-1">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Monitoreando en tiempo real con Supabase</span>
+              </div>
+              <span id="trackCardUpdated">En vivo</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: CITA AGENDADA EXITOSAMENTE (MUESTRA CÓDIGO)      -->
+  <!-- ======================================================== -->
+  <div id="bookingSuccessModal"
+    class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-200 text-center">
+
+      <div class="p-6">
+        <!-- Icono de Éxito -->
+        <div
+          class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mx-auto mb-4 shadow-sm">
+          <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-600"></i>
+        </div>
+
+        <h3 class="text-lg font-bold text-slate-900">¡Cita Registrada con Éxito!</h3>
+        <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+          Tu solicitud fue guardada en la base de datos con estado <strong class="text-amber-600">Pendiente</strong>.
+        </p>
+
+        <!-- Tarjeta Destacada del Código -->
+        <div class="my-5 p-4 bg-slate-900 rounded-2xl border border-slate-800 text-white shadow-inner relative group">
+          <span class="text-[10px] uppercase font-bold tracking-widest text-slate-400 block mb-1">
+            Código de Seguimiento Anónimo
+          </span>
+          <div class="flex items-center justify-center gap-3">
+            <span id="successTrackingCodeDisplay"
+              class="text-3xl font-mono font-extrabold tracking-widest text-blue-400">
+              CR-0000
+            </span>
+            <button id="btnCopySuccessCode" type="button" title="Copiar al portapapeles"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-xs flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-4 h-4" id="copySuccessIcon"></i>
+              <span id="copySuccessText" class="text-[11px] hidden sm:inline">Copiar</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2.5">
+            Guarda este código para consultar el estado sin necesidad de revelar datos personales.
+          </p>
+        </div>
+
+        <!-- Resumen de Cita -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-left text-xs space-y-1.5 mb-5">
+          <div class="flex justify-between text-slate-600">
+            <span class="text-slate-400">Servicio:</span>
+            <span id="successServiceSummary"
+              class="font-semibold text-slate-800 text-right truncate max-w-[200px]">--</span>
+          </div>
+          <div class="flex justify-between text-slate-600">
+            <span class="text-slate-400">Fecha y Horario:</span>
+            <span id="successDateTimeSummary" class="font-semibold text-slate-800">--</span>
+          </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="flex items-center justify-center gap-2.5">
+          <button type="button" id="btnCloseSuccessModal"
+            class="w-1/2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer">
+            Entendido
+          </button>
+          <button type="button" id="btnGoToTrackNow"
+            class="w-1/2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            <span>Ver Estado</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Notificaciones Flotantes (Toast Top-Right) -->
+  <div id="toastContainer" class="fixed top-6 right-6 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+  </div>
+
+  <div id="legalModal" role="dialog" aria-modal="true" aria-labelledby="legalModalTitle"
+    class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
+      <div class="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+        <h2 id="legalModalTitle" class="text-sm font-bold text-white">Información legal</h2>
+        <button id="closeLegalModalBtn" type="button" aria-label="Cerrar información legal"
+          class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-6 max-h-[70vh] overflow-y-auto">
+        <p id="legalModalText" class="text-sm text-slate-600 leading-relaxed"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de acceso visual al panel administrativo -->
+  <div id="adminAccessModal" role="dialog" aria-modal="true" aria-labelledby="adminAccessTitle"
+    class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full overflow-hidden">
+      <div class="px-6 py-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center">
+            <i data-lucide="shield-check" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <div>
+            <h3 id="adminAccessTitle" class="text-sm font-bold text-white">Acceso al Panel Admin</h3>
+            <p class="text-[11px] text-slate-400">Ingresa la contraseña para ver los registros</p>
+          </div>
+        </div>
+        <button id="closeAdminAccessModalBtn" type="button" aria-label="Cerrar"
+          class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="adminAccessForm" class="p-6 space-y-4">
+        <div>
+          <label for="adminPasswordInput"
+            class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Contraseña</label>
+          <input id="adminPasswordInput" type="password" autocomplete="current-password" required placeholder="Contraseña de administrador"
+            class="block w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
+        </div>
+        <p id="adminAccessError" role="alert" class="hidden text-xs text-rose-600">
+          Contraseña incorrecta. No se concedió el acceso.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button id="cancelAdminAccessBtn" type="button"
+            class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit"
+            class="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer">
+            Desbloquear
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- LÓGICA JAVASCRIPT: SUPABASE & CONSULTAS SELECT           -->
+  <!-- ======================================================== -->
+  <script>
+    // Variables globales de estado
+    let supabaseClient = null;
+    const SUPABASE_URL = 'https://kxsfiuegcrswnxgmcndc.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_HccnZvlVqKRn-QX6jerhMw_d-hV1_z3';
+    let citasData = [];
+    let activeStatusFilter = 'all';  // 'all', 'Pendiente', 'Confirmada', 'Cancelada'
+    let activeDateFilter = 'all';    // 'all', 'today'
+    let soundEnabled = true;
+    // Solo controla la visibilidad en este navegador; no sustituye la autorización del servidor.
+    const ADMIN_PASSWORD = 'admin';
+    let adminPanelUnlocked = false;
+    let currentBookingStep = 1;
+
+    // Código de cita actualmente siendo consultado por el cliente
+    let activeTrackedCode = null;
+
+    // Horarios estándar corporativos (8:00 AM a 5:00 PM)
+    const STANDARD_HOURS = [
+      { value: "08:00", label: "08:00 AM" },
+      { value: "08:30", label: "08:30 AM" },
+      { value: "09:00", label: "09:00 AM" },
+      { value: "09:30", label: "09:30 AM" },
+      { value: "10:00", label: "10:00 AM" },
+      { value: "10:30", label: "10:30 AM" },
+      { value: "11:00", label: "11:00 AM" },
+      { value: "11:30", label: "11:30 AM" },
+      { value: "12:00", label: "12:00 PM" },
+      { value: "12:30", label: "12:30 PM" },
+      { value: "13:00", label: "01:00 PM" },
+      { value: "13:30", label: "01:30 PM" },
+      { value: "14:00", label: "02:00 PM" },
+      { value: "14:30", label: "02:30 PM" },
+      { value: "15:00", label: "03:00 PM" },
+      { value: "15:30", label: "03:30 PM" },
+      { value: "16:00", label: "04:00 PM" },
+      { value: "16:30", label: "04:30 PM" },
+      { value: "17:00", label: "05:00 PM" }
+    ];
+
+    // Inicializar iconos
+    lucide.createIcons();
+
+    // Configurar fechas iniciales
+    const fechaInput = document.getElementById('fecha');
+    const todayStr = new Date().toISOString().split('T')[0];
+    fechaInput.min = todayStr;
+    fechaInput.value = todayStr;
+
+    /**
+     * ==============================================================================
+     * FUNCIÓN CLAVE SOLICITADA: CONSULTAR (SELECT) Y VISUALIZAR REGISTROS
+     * ==============================================================================
+     * Realiza una consulta SELECT a la tabla 'citas' en Supabase y renderiza todos
+     * los registros existentes dentro de la tabla visual de la página.
+     * Se ejecuta automáticamente al cargar el DOM.
+     */
+    async function cargarCitas() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.querySelector('i')?.classList.add('animate-spin');
+
+      try {
+        console.log("[Supabase] Ejecutando SELECT a la tabla 'citas'...");
+
+        // Consulta SELECT a Supabase ordenada de forma descendente por id
+        const { data, error } = await supabaseClient
+          .from('citas')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (error) throw error;
+
+        // Normalizar los datos asegurando los campos esperados
+        citasData = (data || []).map(item => ({
+          ...item,
+          hora: item.hora ? String(item.hora).trim() : '',
+          estado: getEstadoValue(item.estado),
+          codigo: item.codigo || (item.id ? `CR-${String(item.id).padStart(4, '0')}` : '')
+        }));
+
+        console.log(`[Supabase] SELECT exitoso: se cargaron ${citasData.length} citas.`);
+
+        // Actualizar contadores y pintar los registros en la tabla visual
+        updateCounters();
+        applyFiltersAndRender();
+        refreshHourOptions();
+        updateStatus('connected', 'En vivo (Sincronizado)');
+
+      } catch (err) {
+        console.error("Error al ejecutar SELECT en 'citas':", err);
+        mostrarErrorEnTabla(err);
+        updateStatus('error', 'Error al leer tabla');
+        refreshHourOptions();
+      } finally {
+        if (refreshBtn) refreshBtn.querySelector('i')?.classList.remove('animate-spin');
+      }
+    }
+
+    /**
+     * Mostrar error en la tabla si falla el SELECT
+     */
+    function mostrarErrorEnTabla(err) {
+      const tbody = document.getElementById('citasTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="py-12 text-center text-rose-500 font-medium">
+            <div class="flex flex-col items-center justify-center gap-2">
+              <i data-lucide="alert-triangle" class="w-7 h-7 text-rose-500 mb-1"></i>
+              <span class="text-sm font-semibold">Error al consultar registros de la tabla "citas"</span>
+              <span class="text-xs text-slate-500 max-w-md">${escapeHTML(err.message || 'Verifica la conexión con Supabase.')}</span>
+              <span class="text-xs text-slate-400 mt-1">Si la tabla requiere políticas RLS, asegúrate de haber ejecutado:</span>
+              <code class="text-[11px] bg-slate-800 text-slate-200 px-2 py-1 rounded">CREATE POLICY "Permitir leer citas" ON citas FOR SELECT USING (true);</code>
+            </div>
+          </td>
+        </tr>
+      `;
+      lucide.createIcons();
+    }
+
+    function getEstadoValue(estado) {
+      const status = String(estado == null ? '' : estado).trim();
+      return status || 'Sin estado';
+    }
+
+    function getEstadoCategory(estado) {
+      const normalizedStatus = String(estado || '').trim().toLocaleLowerCase('es');
+      if (normalizedStatus === 'confirmada' || normalizedStatus === 'aprobada') return 'confirmed';
+      if (normalizedStatus === 'pendiente') return 'pending';
+      if (normalizedStatus === 'cancelada') return 'cancelled';
+      return 'unknown';
+    }
+
+    /**
+     * Renderizado HTML de la lista/tabla de citas
+     */
+    function renderTable(list, highlightId = null, highlightType = 'insert') {
+      const tbody = document.getElementById('citasTableBody');
+      if (!tbody) return;
+
+      if (!list || list.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="py-16 text-center text-slate-400">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                  <i data-lucide="inbox" class="w-6 h-6"></i>
+                </div>
+                <p class="font-medium text-slate-700 text-sm">No hay citas registradas en la base de datos</p>
+                <p class="text-xs text-slate-400">Usa el formulario de la izquierda para registrar la primera cita.</p>
+              </div>
+            </td>
+          </tr>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      tbody.innerHTML = list.map(cita => {
+        const isTarget = highlightId && cita.id === highlightId;
+        const animClass = isTarget ? (highlightType === 'insert' ? 'new-row-highlight' : 'update-row-highlight') : '';
+        const estado = getEstadoValue(cita.estado);
+        const estadoCategory = getEstadoCategory(estado);
+
+        // Estilos de badge según estado
+        let badgeHtml = '';
+        if (estadoCategory === 'confirmed') {
+          badgeHtml = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              ${escapeHTML(estado)}
+            </span>
+          `;
+        } else if (estadoCategory === 'cancelled') {
+          badgeHtml = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              ${escapeHTML(estado)}
+            </span>
+          `;
+        } else if (estadoCategory === 'pending') {
+          badgeHtml = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              ${escapeHTML(estado)}
+            </span>
+          `;
+        } else {
+          badgeHtml = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+              ${escapeHTML(estado)}
+            </span>
+          `;
+        }
+         // Botones de acción dinámicos según estado
+        let actionsHtml = '';
+        if (estadoCategory === 'pending') {
+          actionsHtml = `
+            <div class="flex items-center justify-center gap-1.5">
+              <button 
+                onclick="updateCitaStatus(${cita.id}, 'Confirmada')" 
+                title="Aprobar Cita" 
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] transition-all shadow-xs cursor-pointer"
+              >
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                <span class="hidden xl:inline">Aprobar</span>
+              </button>
+              <button 
+                onclick="updateCitaStatus(${cita.id}, 'Cancelada')" 
+                title="Cancelar Cita" 
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-medium text-[11px] transition-all cursor-pointer"
+              >
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                <span class="hidden xl:inline">Cancelar</span>
+              </button>
+            </div>
+          `;
+        } else if (estadoCategory === 'confirmed') {
+          actionsHtml = `
+            <div class="flex items-center justify-center gap-1.5">
+              <button 
+                onclick="updateCitaStatus(${cita.id}, 'Cancelada')" 
+                title="Cancelar esta cita" 
+                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 text-[11px] font-medium transition-all cursor-pointer"
+              >
+                <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+                <span class="hidden xl:inline">Cancelar</span>
+              </button>
+            </div>
+          `;
+        } else if (estadoCategory === 'cancelled') {
+          actionsHtml = `
+            <div class="flex items-center justify-center gap-1.5">
+              <button 
+                onclick="updateCitaStatus(${cita.id}, 'Pendiente')" 
+                title="Restaurar a Pendiente" 
+                class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[11px] font-medium transition-all cursor-pointer"
+              >
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span class="hidden xl:inline">Reabrir</span>
+              </button>
+            </div>
+          `;
+        }
+
+        return `
+          <tr class="transition-colors hover:bg-slate-50/80 ${animClass}" id="row-${cita.id}">
+            <td class="py-3 px-3 sm:px-4 font-mono font-medium text-slate-500 whitespace-nowrap">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">#${cita.id}</span>
+                ${cita.codigo ? `<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">${escapeHTML(cita.codigo)}</span>` : ''}
+              </div>
+            </td>
+            <td class="py-3 px-3 sm:px-4">
+              <div class="font-semibold text-slate-800 text-xs sm:text-sm">${escapeHTML(cita.nombre)}</div>
+            </td>
+            <td class="py-3 px-3 sm:px-4">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                <i data-lucide="briefcase" class="w-3 h-3 shrink-0"></i>
+                <span class="truncate max-w-[150px] sm:max-w-[200px]" title="${escapeHTML(cita.servicio)}">${escapeHTML(cita.servicio)}</span>
+              </span>
+            </td>
+            <td class="py-3 px-3 sm:px-4 whitespace-nowrap">
+              <div class="flex flex-col">
+                <span class="font-medium text-slate-800 flex items-center gap-1.5">
+                  <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+                  ${escapeHTML(cita.fecha)}
+                </span>
+                <span class="text-slate-500 text-[11px] flex items-center gap-1.5 mt-0.5 font-medium">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                  ${formatTimeDisplay(cita.hora)}
+                </span>
+              </div>
+            </td>
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              ${badgeHtml}
+            </td>
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              ${actionsHtml}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    /**
+     * Filtrar y Renderizar Tabla según estado, fecha o búsqueda de texto
+     */
+    function applyFiltersAndRender(highlightId = null, highlightType = 'insert') {
+      const searchInput = document.getElementById('searchInput');
+      const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+      let filtered = citasData.filter(cita => {
+        const estadoCategory = getEstadoCategory(cita.estado);
+
+        // 1. Filtro por Estado
+        if (activeStatusFilter !== 'all' && estadoCategory !== getEstadoCategory(activeStatusFilter)) {
+          return false;
+        }
+
+        // 2. Filtro por Fecha
+        if (activeDateFilter === 'today' && cita.fecha !== todayStr) {
+          return false;
+        }
+
+        // 3. Filtro por Búsqueda de Texto
+        if (query) {
+          const matchNombre = cita.nombre && cita.nombre.toLowerCase().includes(query);
+          const matchServicio = cita.servicio && cita.servicio.toLowerCase().includes(query);
+          const matchFecha = cita.fecha && cita.fecha.toLowerCase().includes(query);
+          const matchHora = cita.hora && cita.hora.toLowerCase().includes(query);
+          const matchId = cita.id && String(cita.id).includes(query);
+          const matchCodigo = cita.codigo && cita.codigo.toLowerCase().includes(query);
+          if (!matchNombre && !matchServicio && !matchFecha && !matchHora && !matchId && !matchCodigo) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      renderTable(filtered, highlightId, highlightType);
+    }
+
+    /**
+     * Actualizar Contadores de las Métricas
+     */
+    function updateCounters() {
+      const total = citasData.length;
+      const pendientes = citasData.filter(c => getEstadoCategory(c.estado) === 'pending').length;
+      const confirmadas = citasData.filter(c => getEstadoCategory(c.estado) === 'confirmed').length;
+      const canceladas = citasData.filter(c => getEstadoCategory(c.estado) === 'cancelled').length;
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statPendientes').textContent = pendientes;
+      document.getElementById('statConfirmadas').textContent = confirmadas;
+      document.getElementById('statCanceladas').textContent = canceladas;
+
+      document.getElementById('totalBadge').textContent = `${total} ${total === 1 ? 'cita' : 'citas'}`;
+      document.getElementById('tabCountAll').textContent = total;
+      document.getElementById('tabCountPendiente').textContent = pendientes;
+      document.getElementById('tabCountConfirmada').textContent = confirmadas;
+      document.getElementById('tabCountCancelada').textContent = canceladas;
+    }
+
+    /**
+     * Suscripción Realtime a eventos INSERT, UPDATE y DELETE
+     */
+    function subscribeRealtime() {
+      supabaseClient
+        .channel('citas-realtime-channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'citas' },
+          (payload) => {
+            console.log("Cambio en tiempo real recibido:", payload);
+
+            if (payload.eventType === 'INSERT') {
+              const newCita = {
+                ...payload.new,
+                hora: payload.new.hora ? String(payload.new.hora).trim() : '',
+                estado: getEstadoValue(payload.new.estado),
+                codigo: payload.new.codigo || (payload.new.id ? `CR-${String(payload.new.id).padStart(4, '0')}` : '')
+              };
+
+              const exists = citasData.some(c => c.id === newCita.id);
+              if (!exists) {
+                citasData.unshift(newCita);
+                updateCounters();
+                applyFiltersAndRender(newCita.id, 'insert');
+                refreshHourOptions();
+
+                playAudioTone('new');
+
+                showToast(
+                  "Nueva Cita Recibida",
+                  `[${newCita.codigo}] ${newCita.nombre} ha reservado para ${newCita.servicio} (${newCita.fecha} a las ${formatTimeDisplay(newCita.hora)})`,
+                  "info"
+                );
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedCita = {
+                ...payload.new,
+                hora: payload.new.hora ? String(payload.new.hora).trim() : '',
+                estado: getEstadoValue(payload.new.estado),
+                codigo: payload.new.codigo || (payload.new.id ? `CR-${String(payload.new.id).padStart(4, '0')}` : '')
+              };
+
+              const idx = citasData.findIndex(c => c.id === updatedCita.id);
+              const oldStatus = idx !== -1 ? citasData[idx].estado : null;
+
+              if (idx !== -1) {
+                citasData[idx] = updatedCita;
+              } else {
+                citasData.unshift(updatedCita);
+              }
+
+              updateCounters();
+              applyFiltersAndRender(updatedCita.id, 'update');
+              refreshHourOptions();
+
+              // Si el cliente está consultando este código en el modal de seguimiento, actualizar en vivo
+              if (activeTrackedCode && updatedCita.codigo && updatedCita.codigo.toUpperCase() === activeTrackedCode.toUpperCase()) {
+                renderTrackResult(updatedCita, true);
+              }
+
+              if (oldStatus !== updatedCita.estado) {
+                const updatedStatusCategory = getEstadoCategory(updatedCita.estado);
+                if (updatedStatusCategory === 'confirmed') playAudioTone('approved');
+                else if (updatedStatusCategory === 'cancelled') playAudioTone('cancelled');
+
+                showToast(
+                  "Estado Actualizado",
+                  `Cita [${updatedCita.codigo}] de ${updatedCita.nombre} cambió a: ${updatedCita.estado.toUpperCase()}`,
+                  updatedStatusCategory === 'confirmed' ? 'success' : (updatedStatusCategory === 'cancelled' ? 'warning' : 'info')
+                );
+              }
+            } else if (payload.eventType === 'DELETE') {
+              citasData = citasData.filter(c => c.id !== payload.old.id);
+              updateCounters();
+              applyFiltersAndRender();
+              refreshHourOptions();
+              showToast("Cita Eliminada", `Se eliminó el registro #${payload.old.id}`, "warning");
+            }
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            updateStatus('connected', 'En vivo (Realtime activo)');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.warn('Realtime channel error:', err);
+            updateStatus('error', 'Error en canal WebSockets');
+          } else if (status === 'TIMED_OUT') {
+            updateStatus('error', 'Tiempo de espera agotado');
+          }
+        });
+    }
+
+    /**
+     * Cambiar estado de una cita en Supabase (Aprobar / Cancelar / Reabrir)
+     */
+    async function updateCitaStatus(id, newStatus) {
+      const cita = citasData.find(c => c.id === id);
+      if (!cita) return;
+
+      const previousStatus = cita.estado;
+
+      // Actualización optimista inmediata en memoria
+      cita.estado = newStatus;
+      updateCounters();
+      applyFiltersAndRender(id, 'update');
+      refreshHourOptions();
+
+      if (activeTrackedCode && cita.codigo && cita.codigo.toUpperCase() === activeTrackedCode.toUpperCase()) {
+        renderTrackResult(cita, true);
+      }
+
+      try {
+        if (!supabaseClient) throw new Error('Supabase todavía no está conectado.');
+
+        const { data, error } = await supabaseClient
+          .from('citas')
+          .update({ estado: newStatus })
+          .eq('id', id)
+          .select('id, estado')
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!data) throw new Error('Supabase no devolvió la cita actualizada. Revisa el ID y las políticas RLS de UPDATE.');
+
+        cita.estado = getEstadoValue(data.estado);
+        updateCounters();
+        applyFiltersAndRender(id, 'update');
+        refreshHourOptions();
+        if (activeTrackedCode && cita.codigo && cita.codigo.toUpperCase() === activeTrackedCode.toUpperCase()) {
+          renderTrackResult(cita, true);
+        }
+
+      } catch (err) {
+        cita.estado = previousStatus;
+        updateCounters();
+        applyFiltersAndRender();
+        refreshHourOptions();
+        if (activeTrackedCode && cita.codigo && cita.codigo.toUpperCase() === activeTrackedCode.toUpperCase()) {
+          renderTrackResult(cita);
+        }
+        console.error("Error al actualizar estado:", err);
+        showToast("Error de Actualización", `No se pudo cambiar el estado: ${err.message}`, "error");
+      }
+    }
+
+    /**
+     * Formulario: Registro de Nueva Cita (INSERT a Supabase)
+     */
+    document.getElementById('appointmentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validateBookingStep(3)) return;
+
+      const submitBtn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
+      const btnIconWrapper = document.getElementById('btnIconWrapper');
+
+      const nombre = document.getElementById('nombre').value.trim();
+      const servicio = document.getElementById('servicio').value;
+      const fecha = document.getElementById('fecha').value;
+      const hora = document.getElementById('hora').value;
+
+      if (!nombre || !servicio || !fecha || !hora) {
+        showFormAlert("Por favor llena todos los campos obligatorios.", "error");
+        return;
+      }
+
+      // Validar que el horario no esté ocupado antes de enviar
+      const selectedNorm = normalizeTime(hora);
+      const isTaken = (citasData || []).some(c =>
+        c && c.fecha === fecha &&
+        c.hora && normalizeTime(c.hora) === selectedNorm &&
+        getEstadoCategory(c.estado) !== 'cancelled'
+      );
+
+      if (isTaken) {
+        const found = STANDARD_HOURS.find(s => s.value === selectedNorm);
+        const label = found ? found.label : `${hora} hrs`;
+        showFormAlert(`El horario ${label} para la fecha ${fecha} ya fue reservado. Por favor elige otro horario libre.`, "error");
+        return;
+      }
+
+      // Generar código de cita único (ej. CR-4821)
+      const codigoGenerado = generateUniqueTrackingCode();
+
+      // Estado de carga en el botón
+      submitBtn.disabled = true;
+      btnIconWrapper.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>`;
+      btnText.textContent = "Registrando tu cita...";
+      lucide.createIcons();
+      hideFormAlert();
+
+      try {
+        const { data: currentDateBookings, error: availabilityError } = await supabaseClient
+          .from('citas')
+          .select('hora, estado')
+          .eq('fecha', fecha);
+
+        if (availabilityError) throw availabilityError;
+        const slotIsTaken = (currentDateBookings || []).some(c =>
+          normalizeTime(c.hora) === selectedNorm && getEstadoCategory(c.estado) !== 'cancelled'
+        );
+        if (slotIsTaken) {
+          refreshHourOptions();
+          showFormAlert("Ese horario acaba de ocuparse. Elige otra hora disponible.", "error");
+          setBookingStep(2);
+          return;
+        }
+
+        const payload = {
+          nombre,
+          servicio,
+          fecha,
+          hora,
+          estado: 'Pendiente',
+          codigo: codigoGenerado
+        };
+
+        const { data, error } = await supabaseClient
+          .from('citas')
+          .insert([payload])
+          .select();
+
+        if (error) throw error;
+
+        // Limpiar formulario y reajustar valores
+        document.getElementById('appointmentForm').reset();
+        document.getElementById('fecha').value = todayStr;
+        setBookingStep(1, false);
+
+        playAudioTone('new');
+
+        const inserted = (data && data[0])
+          ? { ...data[0], estado: getEstadoValue(data[0].estado), codigo: data[0].codigo || codigoGenerado }
+          : payload;
+
+        if (!citasData.some(c => c.id === inserted.id)) {
+          citasData.unshift(inserted);
+          updateCounters();
+          applyFiltersAndRender(inserted.id, 'insert');
+        }
+
+        refreshHourOptions();
+
+        // Guardar en localStorage para consulta rápida posterior
+        localStorage.setItem('apex_last_tracking_code', codigoGenerado);
+
+        // Desplegar Modal de Confirmación con el Código Generado
+        showBookingSuccessModal(inserted);
+
+      } catch (err) {
+        console.error("Error al registrar cita:", err);
+        showFormAlert(`Error al registrar cita: ${err.message || 'Verifica la conexión'}`, "error");
+        showToast("Error de Inserción", err.message || "No se pudo guardar la cita.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        btnIconWrapper.innerHTML = `<i data-lucide="calendar-check" class="w-4 h-4"></i>`;
+        btnText.textContent = "Confirmar y Agendar Cita";
+        lucide.createIcons();
+      }
+    });
+
+    /**
+     * Llenar y Filtrar Horarios Disponibles (8:00 AM a 5:00 PM)
+     */
+    function refreshHourOptions() {
+      const fechaEl = document.getElementById('fecha');
+      const horaSelect = document.getElementById('hora');
+      const occupiedBadgesList = document.getElementById('occupiedBadgesList');
+      const dateAvailabilityNote = document.getElementById('dateAvailabilityNote');
+
+      if (!horaSelect) return;
+
+      const selectedDate = fechaEl ? fechaEl.value : '';
+ // Extraer horas ocupadas para esta fecha
+      const takenHours = new Set();
+      if (selectedDate && Array.isArray(citasData)) {
+        citasData.forEach(c => {
+          if (c && c.fecha === selectedDate && getEstadoCategory(c.estado) !== 'cancelled' && c.hora) {
+            const norm = normalizeTime(c.hora);
+            if (norm) takenHours.add(norm);
+          }
+        });
+      }
+
+      const previousValue = horaSelect.value ? normalizeTime(horaSelect.value) : '';
+
+      if (dateAvailabilityNote) {
+        if (!selectedDate) {
+          dateAvailabilityNote.textContent = "Selecciona una fecha";
+          dateAvailabilityNote.className = "text-[11px] text-slate-500 font-medium";
+        } else if (takenHours.size === 0) {
+          dateAvailabilityNote.textContent = "Todos los horarios libres (8 AM - 5 PM)";
+          dateAvailabilityNote.className = "text-[11px] text-emerald-600 font-semibold";
+        } else {
+          const libres = Math.max(0, STANDARD_HOURS.length - takenHours.size);
+          dateAvailabilityNote.textContent = `${libres} disponibles / ${takenHours.size} ocupado(s)`;
+          dateAvailabilityNote.className = "text-[11px] text-blue-600 font-medium";
+        }
+      }
+
+      let optionsHtml = `<option value="" disabled ${!previousValue ? 'selected' : ''}>Selecciona un horario disponible...</option>`;
+      let firstAvailableHour = null;
+
+      STANDARD_HOURS.forEach(slot => {
+        const isOccupied = takenHours.has(slot.value);
+        if (!isOccupied && !firstAvailableHour) {
+          firstAvailableHour = slot.value;
+        }
+
+        if (isOccupied) {
+          optionsHtml += `
+            <option value="${slot.value}" disabled class="text-slate-400 bg-slate-100 italic">
+              ${slot.label} — (OCUPADO ⚠️)
+            </option>
+          `;
+        } else {
+          optionsHtml += `
+            <option value="${slot.value}" class="text-slate-800 font-medium">
+              ${slot.label} (Disponible)
+            </option>
+          `;
+        }
+      });
+
+      horaSelect.innerHTML = optionsHtml;
+
+      if (previousValue && !takenHours.has(previousValue)) {
+        horaSelect.value = previousValue;
+      } else if (firstAvailableHour) {
+        horaSelect.value = firstAvailableHour;
+      } else {
+        horaSelect.value = "";
+      }
+
+      if (occupiedBadgesList) {
+        if (takenHours.size === 0) {
+          occupiedBadgesList.innerHTML = `<span class="text-emerald-600 font-medium flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> Jornada completa libre (8:00 AM - 5:00 PM)</span>`;
+        } else {
+          occupiedBadgesList.innerHTML = Array.from(takenHours).sort().map(h => {
+            const found = STANDARD_HOURS.find(s => s.value === h);
+            const label = found ? found.label : `${h} hrs`;
+            return `
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                ${escapeHTML(label)} (Ocupado)
+              </span>
+            `;
+          }).join('');
+        }
+      }
+
+      checkHourSelectionConflict();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    /**
+     * Validar conflicto al cambiar hora
+     */
+    function checkHourSelectionConflict() {
+      const fechaEl = document.getElementById('fecha');
+      const horaSelect = document.getElementById('hora');
+      const conflictBadge = document.getElementById('timeConflictBadge');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!fechaEl || !horaSelect || !submitBtn) return;
+
+      const selectedDate = fechaEl.value;
+      const selectedHour = horaSelect.value ? normalizeTime(horaSelect.value) : '';
+
+      if (!selectedDate || !selectedHour) {
+        if (conflictBadge) conflictBadge.classList.add('hidden');
+        submitBtn.disabled = false;
+        return;
+      }
+
+      const isConflict = (citasData || []).some(c => {
+        return c &&
+          c.fecha === selectedDate &&
+          c.hora && normalizeTime(c.hora) === selectedHour &&
+          getEstadoCategory(c.estado) !== 'cancelled';
+      });
+
+      if (isConflict) {
+        if (conflictBadge) conflictBadge.classList.remove('hidden');
+        submitBtn.disabled = true;
+      } else {
+        if (conflictBadge) conflictBadge.classList.add('hidden');
+        submitBtn.disabled = false;
+      }
+    }
+
+    /**
+     * Generador de Código de Seguimiento Único (ej: "CR-4821")
+     */
+    function generateUniqueTrackingCode() {
+      let code = '';
+      let exists = true;
+      let attempts = 0;
+
+      while (exists && attempts < 30) {
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        code = `CR-${randNum}`;
+        exists = (citasData || []).some(c => c && c.codigo === code);
+        attempts++;
+      }
+      return code;
+    }
+
+    /**
+     * Anonimizar nombre para proteger privacidad del cliente (ej: "Carlos M.")
+     */
+    function anonymizeName(name) {
+      if (!name) return 'Cliente';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length === 1) {
+        const first = parts[0];
+        return first.length > 2 ? first.charAt(0) + '***' : first;
+      }
+      const firstName = parts[0];
+      const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase() + '.';
+      return `${firstName} ${lastInitial}`;
+    }
+
+    /**
+     * Normalizar cadenas de hora para comparación segura (formato "HH:MM")
+     */
+    function normalizeTime(str) {
+      if (!str) return '';
+      str = String(str).trim();
+
+      const ampmMatch = str.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
+      if (ampmMatch) {
+        let h = parseInt(ampmMatch[1], 10);
+        const m = ampmMatch[2];
+        const modifier = ampmMatch[3] ? ampmMatch[3].toUpperCase() : null;
+        if (modifier === 'PM' && h < 12) h += 12;
+        if (modifier === 'AM' && h === 12) h = 0;
+        return `${String(h).padStart(2, '0')}:${m}`;
+      }
+
+      const standardMatch = str.match(/^(\d{1,2}):(\d{2})/);
+      if (standardMatch) {
+        const h = String(parseInt(standardMatch[1], 10)).padStart(2, '0');
+        const m = standardMatch[2];
+        return `${h}:${m}`;
+      }
+
+      return str;
+    }
+
+    /**
+     * Formatear hora de forma amigable (ej: "09:00 AM")
+     */
+    function formatTimeDisplay(timeStr) {
+      if (!timeStr) return '--:--';
+      const norm = normalizeTime(timeStr);
+      const found = STANDARD_HOURS.find(s => s.value === norm);
+      return found ? found.label : `${timeStr} hrs`;
+    }
+
+    /**
+     * Sintetizador de audio puro con Web Audio API
+     */
+    function playAudioTone(type = 'new') {
+      if (!soundEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'new') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.38);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.38);
+        } else if (type === 'approved') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(440, ctx.currentTime);
+          osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.14, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+        } else if (type === 'cancelled') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(493.88, ctx.currentTime);
+          osc.frequency.setValueAtTime(329.63, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.14, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+        }
+      } catch (e) {
+        // En navegadores con restricciones de autoplay
+      }
+    }
+
+    /**
+     * Actualiza el indicador visual de estado en tiempo real
+     */
+    function updateStatus(state, message) {
+      const dot = document.getElementById('statusIndicatorDot');
+      const text = document.getElementById('statusIndicatorText');
+
+      if (!dot || !text) return;
+
+      if (state === 'connected') {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-effect";
+        text.className = "font-medium text-emerald-400";
+        text.textContent = message || "En vivo (Canales Activos)";
+      } else if (state === 'error') {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+        text.className = "font-medium text-rose-400";
+        text.textContent = message || "Sin conexión";
+      } else {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 pulse-effect";
+        text.className = "font-medium text-amber-300";
+        text.textContent = message || "Conectando...";
+      }
+    }
+
+    /**
+     * Modal de Confirmación de Cita con Código Destacado
+     */
+    function showBookingSuccessModal(cita) {
+      document.getElementById('successTrackingCodeDisplay').textContent = cita.codigo || 'CR-0000';
+      document.getElementById('successServiceSummary').textContent = cita.servicio;
+      document.getElementById('successDateTimeSummary').textContent = `${cita.fecha} a las ${formatTimeDisplay(cita.hora)}`;
+
+      const modal = document.getElementById('bookingSuccessModal');
+      modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeBookingSuccessModal() {
+      document.getElementById('bookingSuccessModal').classList.add('hidden');
+    }
+
+    /**
+     * Modal de Consulta de Cita Pública (Tracking Modal)
+     */
+    function openTrackingModal(prefilledCode = '') {
+      const modal = document.getElementById('trackingModal');
+      const input = document.getElementById('trackingCodeInput');
+      const resultCard = document.getElementById('trackingResultCard');
+      const statusMsg = document.getElementById('trackingStatusMessage');
+
+      resultCard.classList.add('hidden');
+      statusMsg.classList.add('hidden');
+
+      const lastCode = localStorage.getItem('apex_last_tracking_code');
+      const quickChipsBox = document.getElementById('trackingQuickChips');
+      const btnQuickChip = document.getElementById('btnQuickChipCode');
+
+      if (lastCode) {
+        quickChipsBox.classList.remove('hidden');
+        btnQuickChip.textContent = lastCode;
+      } else {
+        quickChipsBox.classList.add('hidden');
+      }
+
+      if (prefilledCode) {
+        input.value = prefilledCode;
+        performTrackingSearch(prefilledCode);
+      } else if (lastCode) {
+        input.value = lastCode;
+      } else {
+        input.value = '';
+      }
+      modal.classList.remove('hidden');
+      setTimeout(() => input.focus(), 60);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeTrackingModal() {
+      document.getElementById('trackingModal').classList.add('hidden');
+      activeTrackedCode = null;
+    }
+
+    /**
+     * Ejecutar búsqueda de cita por código en Supabase
+     */
+    async function performTrackingSearch(code) {
+      const cleanCode = (code || '').trim().toUpperCase();
+      const statusMsg = document.getElementById('trackingStatusMessage');
+      const resultCard = document.getElementById('trackingResultCard');
+      const searchBtn = document.getElementById('btnSubmitTrackingSearch');
+
+      if (!cleanCode) return;
+
+      searchBtn.disabled = true;
+      searchBtn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>`;
+      lucide.createIcons();
+
+      statusMsg.className = "p-3.5 rounded-xl text-xs bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-2";
+      statusMsg.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-blue-600"></i><span>Buscando cita con código <strong>${escapeHTML(cleanCode)}</strong>...</span>`;
+      statusMsg.classList.remove('hidden');
+      resultCard.classList.add('hidden');
+
+      try {
+        let cita = (citasData || []).find(c => c && c.codigo && c.codigo.toUpperCase() === cleanCode);
+
+        if (!cita) {
+          const { data, error } = await supabaseClient
+            .from('citas')
+            .select('*')
+            .ilike('codigo', cleanCode)
+            .limit(1);
+
+          if (!error && data && data.length > 0) {
+            cita = {
+              ...data[0],
+              hora: data[0].hora ? String(data[0].hora).trim() : '',
+              estado: getEstadoValue(data[0].estado),
+              codigo: data[0].codigo || cleanCode
+            };
+          }
+        }
+
+        if (cita) {
+          activeTrackedCode = cleanCode;
+          statusMsg.classList.add('hidden');
+          renderTrackResult(cita);
+          playAudioTone('approved');
+        } else {
+          activeTrackedCode = null;
+          statusMsg.className = "p-3.5 rounded-xl text-xs bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-2.5";
+          statusMsg.innerHTML = `
+            <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0"></i>
+            <span>No se encontró ninguna cita registrada con el código <strong>${escapeHTML(cleanCode)}</strong>. Verifica que esté bien escrito (ejemplo: CR-4821).</span>
+          `;
+          resultCard.classList.add('hidden');
+          playAudioTone('cancelled');
+        }
+
+      } catch (err) {
+        console.error("Error al buscar cita:", err);
+        statusMsg.className = "p-3.5 rounded-xl text-xs bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-2.5";
+        statusMsg.innerHTML = `<i data-lucide="alert-octagon" class="w-4 h-4 text-rose-600 shrink-0"></i><span>Error al consultar la cita: ${err.message || 'Verifica la red'}</span>`;
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = `<span>Buscar</span><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>`;
+        lucide.createIcons();
+      }
+    }
+
+    /**
+     * Renderizar el resultado de la consulta de cita
+     */
+    function renderTrackResult(cita, isLiveUpdate = false) {
+      const resultCard = document.getElementById('trackingResultCard');
+      const badgeContainer = document.getElementById('trackCardBadge');
+      const explanationContainer = document.getElementById('trackCardExplanation');
+
+      document.getElementById('trackCardCode').textContent = cita.codigo || 'CR-0000';
+      document.getElementById('trackCardClient').textContent = `Cliente: ${anonymizeName(cita.nombre)}`;
+      document.getElementById('trackCardService').textContent = cita.servicio;
+      document.getElementById('trackCardDateTime').textContent = `${cita.fecha} — ${formatTimeDisplay(cita.hora)}`;
+
+      const estado = getEstadoValue(cita.estado);
+      const estadoCategory = getEstadoCategory(estado);
+
+      if (estadoCategory === 'confirmed') {
+        badgeContainer.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            ${escapeHTML(estado)}
+          </span>
+        `;
+        explanationContainer.className = "p-3 rounded-xl text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-start gap-2.5";
+        explanationContainer.innerHTML = `
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="font-bold">¡Tu cita ha sido Aprobada!</strong>
+            <p class="text-[11px] text-emerald-700 mt-0.5">Tu turno se encuentra confirmado para el día y la hora indicada. Te sugerimos llegar con 5 minutos de anticipación.</p>
+          </div>
+        `;
+      } else if (estadoCategory === 'cancelled') {
+        badgeContainer.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            ${escapeHTML(estado)}
+          </span>
+        `;
+        explanationContainer.className = "p-3 rounded-xl text-xs bg-rose-50 text-rose-800 border border-rose-200 flex items-start gap-2.5";
+        explanationContainer.innerHTML = `
+          <i data-lucide="x-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="font-bold">Cita Cancelada</strong>
+            <p class="text-[11px] text-rose-700 mt-0.5">Esta cita fue rechazada o cancelada. Si necesitas atención, te invitamos a agendar un nuevo horario disponible.</p>
+          </div>
+        `;
+      } else if (estadoCategory === 'pending') {
+        badgeContainer.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            ${escapeHTML(estado)}
+          </span>
+        `;
+        explanationContainer.className = "p-3 rounded-xl text-xs bg-amber-50 text-amber-800 border border-amber-200 flex items-start gap-2.5";
+        explanationContainer.innerHTML = `
+          <i data-lucide="clock" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="font-bold">En Revisión</strong>
+            <p class="text-[11px] text-amber-700 mt-0.5">Tu solicitud fue recibida correctamente. En breve nuestro personal la revisará para confirmarla.</p>
+          </div>
+        `;
+      } else {
+        badgeContainer.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+            ${escapeHTML(estado)}
+          </span>
+        `;
+        explanationContainer.className = "p-3 rounded-xl text-xs bg-slate-50 text-slate-700 border border-slate-200 flex items-start gap-2.5";
+        explanationContainer.innerHTML = `
+          <i data-lucide="info" class="w-4 h-4 text-slate-500 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="font-bold">Estado de tu cita</strong>
+            <p class="text-[11px] text-slate-600 mt-0.5">El estado actual registrado es ${escapeHTML(estado)}.</p>
+          </div>
+        `;
+      }
+
+      document.getElementById('trackCardUpdated').textContent = isLiveUpdate ? '¡Actualizado en vivo!' : 'Sincronizado';
+      resultCard.classList.remove('hidden');
+
+      if (isLiveUpdate) {
+        resultCard.classList.add('new-row-highlight');
+        setTimeout(() => resultCard.classList.remove('new-row-highlight'), 3000);
+      }
+
+      lucide.createIcons();
+    }
+
+    /**
+     * Configuración de Eventos de la Interfaz
+     */
+    function openAdminAccessModal() {
+      const modal = document.getElementById('adminAccessModal');
+      const passwordInput = document.getElementById('adminPasswordInput');
+      document.getElementById('adminAccessError').classList.add('hidden');
+      passwordInput.value = '';
+      passwordInput.removeAttribute('aria-invalid');
+      modal.classList.remove('hidden');
+      passwordInput.focus();
+    }
+
+    function closeAdminAccessModal() {
+      document.getElementById('adminAccessModal').classList.add('hidden');
+    }
+
+    function setAdminPanelUnlocked(unlocked) {
+      adminPanelUnlocked = unlocked;
+      const panel = document.getElementById('adminRecordsPanel');
+      const formPanel = document.getElementById('appointmentFormPanel');
+      const accessButton = document.getElementById('btnAdminAccess');
+      const accessButtonText = accessButton.querySelector('span');
+      const accessButtonIcon = accessButton.querySelector('svg');
+
+      panel.classList.toggle('hidden', !unlocked);
+      formPanel.classList.toggle('lg:col-span-12', !unlocked);
+      formPanel.classList.toggle('lg:col-span-5', unlocked);
+      accessButtonText.textContent = unlocked ? 'Cerrar Panel Admin' : 'Panel Admin';
+      accessButton.title = unlocked ? 'Ocultar los registros administrativos' : 'Acceso al panel de administración';
+      accessButtonIcon.setAttribute('data-lucide', unlocked ? 'lock-keyhole-open' : 'lock-keyhole');
+
+      if (unlocked) closeAdminAccessModal();
+      lucide.createIcons();
+    }
+
+    function setBookingStep(step, shouldFocus = true) {
+      currentBookingStep = step;
+      const stepBadge = document.getElementById('bookingStepBadge');
+      stepBadge.textContent = step;
+      stepBadge.setAttribute('aria-label', `Paso ${step} de 3`);
+      document.querySelectorAll('[data-step-panel]').forEach(panel => {
+        panel.hidden = Number(panel.dataset.stepPanel) !== step;
+      });
+
+      document.querySelectorAll('[data-step-indicator]').forEach(indicator => {
+        const indicatorStep = Number(indicator.dataset.stepIndicator);
+        const number = indicator.querySelector('.step-number');
+        const isCurrent = indicatorStep === step;
+        const isComplete = indicatorStep < step;
+
+        indicator.className = `step-indicator flex items-center gap-2 border-b-2 pb-3 ${
+          isCurrent ? 'border-blue-600 text-blue-700' : isComplete ? 'border-emerald-500 text-emerald-700' : 'border-slate-200 text-slate-400'
+        }`;
+        number.className = `step-number flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+          isCurrent ? 'bg-blue-600 text-white' : isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+        }`;
+        indicator.setAttribute('aria-current', isCurrent ? 'step' : 'false');
+      });
+
+      document.getElementById('previousStepBtn').classList.toggle('hidden', step === 1);
+      document.getElementById('nextStepBtn').classList.toggle('hidden', step === 3);
+      document.getElementById('bookingActions').classList.toggle('hidden', step !== 3);
+      document.getElementById('bookingPrivacyNotice').classList.toggle('hidden', step !== 3);
+      document.getElementById('stepHint').textContent = step === 1
+        ? 'Primero, elige el servicio que necesitas.'
+        : step === 2
+          ? 'Selecciona la fecha y un horario disponible.'
+          : 'Revisa tu reserva y confirma tus datos.';
+      hideFormAlert();
+
+      if (step === 3) updateBookingSummary();
+      if (shouldFocus) {
+        const firstControl = document.querySelector(`[data-step-panel="${step}"] input, [data-step-panel="${step}"] select`);
+        if (firstControl) firstControl.focus({ preventScroll: true });
+      }
+    }
+
+    function updateBookingSummary() {
+      const service = document.getElementById('servicio');
+      const date = document.getElementById('fecha').value;
+      const hour = document.getElementById('hora').value;
+      const formattedDate = date
+        ? new Date(`${date}T00:00:00`).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        : 'Pendiente';
+
+      document.getElementById('bookingSummaryService').textContent = service.value || 'Pendiente';
+      document.getElementById('bookingSummaryDate').textContent = formattedDate;
+      document.getElementById('bookingSummaryTime').textContent = hour ? formatTimeDisplay(hour) : 'Pendiente';
+    }
+
+    function validateBookingStep(step) {
+      const fields = {
+        1: [{ id: 'servicio', message: 'Selecciona el servicio para continuar.' }],
+        2: [
+          { id: 'fecha', message: 'Selecciona una fecha para tu cita.' },
+          { id: 'hora', message: 'Selecciona un horario disponible.' }
+        ],
+        3: [{ id: 'nombre', message: 'Escribe tu nombre para completar la reserva.' }]
+      }[step];
+
+      for (const field of fields) {
+        const input = document.getElementById(field.id);
+        if (!input.value.trim()) {
+          showFormAlert(field.message, 'error');
+          input.focus();
+          return false;
+        }
+      }
+
+      if (step === 2 && document.getElementById('fecha').value < todayStr) {
+        showFormAlert('Elige una fecha de hoy o posterior.', 'error');
+        document.getElementById('fecha').focus();
+        return false;
+      }
+
+      if (step === 2) {
+        const date = document.getElementById('fecha').value;
+        const hour = normalizeTime(document.getElementById('hora').value);
+        const isTaken = citasData.some(c => c.fecha === date && normalizeTime(c.hora) === hour && getEstadoCategory(c.estado) !== 'cancelled');
+        if (isTaken) {
+          showFormAlert('Ese horario acaba de ocuparse. Elige otra hora disponible.', 'error');
+          refreshHourOptions();
+          document.getElementById('hora').focus();
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    function openLegalModal(documentType) {
+      const legalDocuments = {
+        privacy: {
+          title: 'Política de Privacidad',
+          text: 'Los datos personales proporcionados en el formulario de citas se utilizarán únicamente para gestionar solicitudes, coordinar citas y brindar la atención corporativa relacionada. La información se almacena en Supabase y se protege mediante las medidas de seguridad disponibles en la plataforma y la configuración del proyecto. No se utilizará para fines ajenos a la gestión del servicio.'
+        },
+        terms: {
+          title: 'Términos y Condiciones',
+          text: 'Al enviar una solicitud, confirmas que la información proporcionada es correcta y autorizas su uso para gestionar tu cita y la atención corporativa relacionada. El envío constituye una solicitud y la cita queda sujeta a confirmación. Los datos se almacenan en Supabase y se tratan conforme a la Política de Privacidad.'
+        },
+        cookies: {
+          title: 'Política de Cookies',
+          text: 'Esta página no utiliza cookies de seguimiento ni publicidad. Para facilitar la consulta posterior de una cita, guarda localmente en este navegador el último código de seguimiento que generaste. Puedes borrar ese dato desde la configuración de almacenamiento de tu navegador; no se usa para identificarte en otros sitios.'
+        }
+      };
+      const legalDocument = legalDocuments[documentType];
+      if (!legalDocument) return;
+
+      document.getElementById('legalModalTitle').textContent = legalDocument.title;
+      document.getElementById('legalModalText').textContent = legalDocument.text;
+      document.getElementById('legalModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeLegalModal() {
+      document.getElementById('legalModal').classList.add('hidden');
+    }
+
+    function setupEventListeners() {
+      document.querySelectorAll('[data-legal-document]').forEach(button => {
+        button.addEventListener('click', () => openLegalModal(button.dataset.legalDocument));
+      });
+      document.getElementById('closeLegalModalBtn').addEventListener('click', closeLegalModal);
+      document.getElementById('legalModal').addEventListener('click', (e) => {
+        if (e.target.id === 'legalModal') closeLegalModal();
+      });
+
+      // Acceso visual al panel administrativo
+      document.getElementById('btnAdminAccess').addEventListener('click', () => {
+        if (adminPanelUnlocked) {
+          setAdminPanelUnlocked(false);
+        } else {
+          openAdminAccessModal();
+        }
+      });
+
+      document.getElementById('nextStepBtn').addEventListener('click', () => {
+        if (validateBookingStep(currentBookingStep)) setBookingStep(currentBookingStep + 1);
+      });
+      document.getElementById('previousStepBtn').addEventListener('click', () => {
+        if (currentBookingStep > 1) setBookingStep(currentBookingStep - 1);
+      });
+      document.getElementById('servicio').addEventListener('change', updateBookingSummary);
+      document.getElementById('fecha').addEventListener('change', () => {
+        refreshHourOptions();
+        updateBookingSummary();
+      });
+      document.getElementById('hora').addEventListener('change', updateBookingSummary);
+
+      document.getElementById('adminAccessForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const passwordInput = document.getElementById('adminPasswordInput');
+        const accessError = document.getElementById('adminAccessError');
+
+        if (passwordInput.value !== ADMIN_PASSWORD) {
+          accessError.classList.remove('hidden');
+          passwordInput.setAttribute('aria-invalid', 'true');
+          passwordInput.focus();
+          return;
+        }
+
+        setAdminPanelUnlocked(true);
+      });
+
+      document.getElementById('closeAdminAccessModalBtn').addEventListener('click', closeAdminAccessModal);
+      document.getElementById('cancelAdminAccessBtn').addEventListener('click', closeAdminAccessModal);
+      document.getElementById('adminAccessModal').addEventListener('click', (e) => {
+        if (e.target.id === 'adminAccessModal') closeAdminAccessModal();
+      });
+      document.getElementById('adminPasswordInput').addEventListener('input', () => {
+        document.getElementById('adminAccessError').classList.add('hidden');
+        document.getElementById('adminPasswordInput').removeAttribute('aria-invalid');
+      });
+
+      // Cambio de hora -> verificar conflicto
+      document.getElementById('hora').addEventListener('change', () => {
+        checkHourSelectionConflict();
+      });
+
+      // Búsqueda en vivo
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          applyFiltersAndRender();
+        });
+      }
+
+      // Refresco manual (ejecuta de nuevo SELECT)
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+          cargarCitas();
+        });
+      }
+
+      // Pestañas de Filtro por Estado
+      document.querySelectorAll('.status-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeStatusFilter = btn.dataset.status;
+
+          document.querySelectorAll('.status-tab-btn').forEach(b => {
+            b.className = "status-tab-btn px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all cursor-pointer flex items-center gap-1.5";
+          });
+          btn.className = "status-tab-btn px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1.5";
+
+          applyFiltersAndRender();
+        });
+      });
+
+      // Filtro por Fecha (Todas vs Hoy)
+      document.querySelectorAll('.date-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeDateFilter = btn.dataset.dateFilter;
+
+          document.querySelectorAll('.date-filter-btn').forEach(b => {
+            b.className = "date-filter-btn px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-600 hover:text-slate-900 transition-all cursor-pointer";
+          });
+          btn.className = "date-filter-btn px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-900 text-white transition-all cursor-pointer";
+
+          applyFiltersAndRender();
+        });
+      });
+
+      // Conmutar sonido
+      document.getElementById('toggleSoundBtn').addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        const icon = document.getElementById('soundIcon');
+        const text = document.getElementById('soundText');
+if (soundEnabled) {
+          icon.setAttribute('data-lucide', 'volume-2');
+          icon.className = "w-3.5 h-3.5 text-blue-600";
+          text.textContent = "Audio";
+          playAudioTone('approved');
+        } else {
+          icon.setAttribute('data-lucide', 'volume-x');
+          icon.className = "w-3.5 h-3.5 text-slate-400";
+          text.textContent = "Silenciado";
+        }
+        lucide.createIcons();
+      });
+
+      // Eventos de Consulta Anónima (Tracking)
+      document.getElementById('btnHeaderTrack').addEventListener('click', () => openTrackingModal());
+      document.getElementById('closeTrackingModalBtn').addEventListener('click', closeTrackingModal);
+
+      document.getElementById('btnQuickChipCode').addEventListener('click', () => {
+        const lastCode = localStorage.getItem('apex_last_tracking_code');
+        if (lastCode) {
+          document.getElementById('trackingCodeInput').value = lastCode;
+          performTrackingSearch(lastCode);
+        }
+      });
+
+      document.getElementById('trackingSearchForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = document.getElementById('trackingCodeInput').value;
+        performTrackingSearch(code);
+      });
+
+      // Eventos del Modal de Éxito
+      document.getElementById('btnCloseSuccessModal').addEventListener('click', closeBookingSuccessModal);
+
+      document.getElementById('btnGoToTrackNow').addEventListener('click', () => {
+        const code = document.getElementById('successTrackingCodeDisplay').textContent.trim();
+        closeBookingSuccessModal();
+        openTrackingModal(code);
+      });
+
+      document.getElementById('btnCopySuccessCode').addEventListener('click', () => {
+        const code = document.getElementById('successTrackingCodeDisplay').textContent.trim();
+        const copyText = document.getElementById('copySuccessText');
+        const copyIcon = document.getElementById('copySuccessIcon');
+
+        navigator.clipboard.writeText(code).then(() => {
+          copyText.textContent = "¡Copiado!";
+          copyIcon.setAttribute('data-lucide', 'check');
+          lucide.createIcons();
+          setTimeout(() => {
+            copyText.textContent = "Copiar";
+            copyIcon.setAttribute('data-lucide', 'copy');
+            lucide.createIcons();
+          }, 2000);
+        }).catch(() => {
+          showToast("Código Copiado", code, "info");
+        });
+      });
+
+      // Cerrar modales con Escape
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          const trackModal = document.getElementById('trackingModal');
+          if (trackModal && !trackModal.classList.contains('hidden')) closeTrackingModal();
+
+          const successModal = document.getElementById('bookingSuccessModal');
+          if (successModal && !successModal.classList.contains('hidden')) closeBookingSuccessModal();
+
+          const legalModal = document.getElementById('legalModal');
+          if (legalModal && !legalModal.classList.contains('hidden')) closeLegalModal();
+        }
+      });
+    }
+
+    /**
+     * Notificaciones Flotantes (Toast Top-Right)
+     */
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      let icon = 'info';
+      let iconColor = 'text-blue-400';
+      let borderAccent = 'border-l-4 border-l-blue-500';
+
+      if (type === 'success') {
+        icon = 'check-circle-2';
+        iconColor = 'text-emerald-400';
+        borderAccent = 'border-l-4 border-l-emerald-500';
+      } else if (type === 'warning') {
+        icon = 'alert-triangle';
+        iconColor = 'text-amber-400';
+        borderAccent = 'border-l-4 border-l-amber-500';
+      } else if (type === 'error') {
+        icon = 'alert-octagon';
+        iconColor = 'text-rose-400';
+        borderAccent = 'border-l-4 border-l-rose-500';
+      }
+
+      toast.className = `pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-xl shadow-2xl border border-slate-700/80 ${borderAccent} flex items-start gap-3 transition-all duration-300 transform -translate-y-2 opacity-0`;
+      toast.innerHTML = `
+        <i data-lucide="${icon}" class="w-5 h-5 ${iconColor} shrink-0 mt-0.5"></i>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-bold text-white tracking-wide">${escapeHTML(title)}</p>
+          <p class="text-xs text-slate-300 mt-0.5 leading-relaxed break-words">${escapeHTML(message)}</p>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white p-0.5 transition-colors cursor-pointer">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => {
+        toast.classList.remove('-translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 350);
+      }, 4500);
+    }
+
+    function showFormAlert(message, type) {
+      const alert = document.getElementById('formAlert');
+      alert.classList.remove('hidden', 'bg-rose-50', 'text-rose-700', 'border-rose-200', 'bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+
+      const icon = document.createElement('i');
+      icon.dataset.lucide = type === 'error' ? 'alert-circle' : 'check-circle';
+      icon.className = `w-4 h-4 shrink-0 ${type === 'error' ? 'text-rose-500' : 'text-emerald-500'}`;
+      const messageElement = document.createElement('span');
+      messageElement.textContent = message;
+      alert.replaceChildren(icon, messageElement);
+
+      if (type === 'error') {
+        alert.classList.add('bg-rose-50', 'text-rose-700', 'border', 'border-rose-200');
+      } else {
+        alert.classList.add('bg-emerald-50', 'text-emerald-700', 'border', 'border-emerald-200');
+      }
+      alert.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function hideFormAlert() {
+      const alert = document.getElementById('formAlert');
+      alert.classList.add('hidden');
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * ==============================================================================
+     * FUNCIÓN EN JAVASCRIPT: CONSULTA (SELECT) Y VISUALIZACIÓN DE REGISTROS
+     * ==============================================================================
+     * Realiza la consulta SELECT a la tabla 'citas' en Supabase y renderiza todos
+     * los registros existentes dentro de la tabla visual en el diseño de la página.
+     * Se ejecuta de forma automática al cargar el documento (DOMContentLoaded).
+     */
+    async function consultarCitas() {
+      console.log("[Supabase] Ejecutando consulta SELECT a la tabla 'citas'...");
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.querySelector('i')?.classList.add('animate-spin');
+try {
+        // 1. Consulta SELECT a Supabase ordenada por ID de forma descendente
+        const { data, error } = await supabaseClient
+          .from('citas')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (error) throw error;
+
+        // 2. Normalizar los datos asegurando los campos esperados
+        citasData = (data || []).map(item => ({
+          ...item,
+          hora: item.hora ? String(item.hora).trim() : '',
+          estado: getEstadoValue(item.estado),
+          codigo: item.codigo || (item.id ? `CR-${String(item.id).padStart(4, '0')}` : '')
+        }));
+
+        console.log(`[Supabase] SELECT exitoso: se obtuvieron ${citasData.length} registros.`);
+
+        // 3. Pintar todos los registros existentes en la tabla visual
+        updateCounters();
+        applyFiltersAndRender();
+        refreshHourOptions();
+        updateStatus('connected', 'En vivo (Sincronizado)');
+
+        return citasData;
+
+      } catch (err) {
+        console.error("Error al ejecutar SELECT en 'citas':", err);
+        mostrarErrorEnTabla(err);
+        updateStatus('error', 'Error al leer tabla');
+        refreshHourOptions();
+      } finally {
+        if (refreshBtn) refreshBtn.querySelector('i')?.classList.remove('animate-spin');
+      }
+    }
+
+    // Alias para compatibilidad total con cualquier nombre de función
+    window.consultarCitas = consultarCitas;
+    window.cargarCitas = consultarCitas;
+    window.mostrarCitas = consultarCitas;
+    window.obtenerCitas = consultarCitas;
+
+    /**
+     * Inicialización Principal de la Aplicación
+     */
+    async function initApp() {
+      setupEventListeners();
+      setAdminPanelUnlocked(false);
+      setBookingStep(1, false);
+
+      // 1. Llenar de inmediato las opciones de horarios de atención
+      refreshHourOptions();
+
+      try {
+        // Supabase JS requiere la URL raíz del proyecto, no la ruta /rest/v1.
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        updateStatus("connecting", "Conectando a Supabase...");
+
+        // ==============================================================================
+        // 3. EJECUTAR CONSULTA SELECT AL CARGAR LA PÁGINA PARA MOSTRAR TODOS LOS REGISTROS
+        // ==============================================================================
+        await consultarCitas();
+
+        // 4. Suscribirse a canales en tiempo real para actualizaciones inmediatas
+        subscribeRealtime();
+
+      } catch (err) {
+        console.error("Error al inicializar la aplicación:", err);
+        updateStatus("error", "Error de conexión");
+        showToast("Error de Conexión", err.message || "No se pudo inicializar Supabase.", "error");
+      }
+    }
+
+    // Iniciar automáticamente al cargar el DOM de la página
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+
+</html>
